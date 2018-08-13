@@ -31,6 +31,8 @@
  **/
 
 #pragma once
+// TODO: Not parametric:  publicKey_deletion_niederreiter, privateKey_deletion_niederreiter, zeroize
+#define key_gen_niederreiter PARAMETRIC_CAT(key_gen_niederreiter, CATEGORY, N0)
 
 #include "niederreiter.h"
 #include "rng.h"
