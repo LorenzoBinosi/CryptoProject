@@ -35,53 +35,6 @@
 #include "rng.h"
 #include <string.h>  // memcpy(...), memset(...)
 #include <assert.h>
-/*----------------------------------------------------------------------------*/
-
-void gf2x_mod(DIGIT out[],
-              const int nin, const DIGIT in[])
-{
-
-   long int i, j, posTrailingBit, maskOffset;
-   DIGIT mask, aux[nin];
-
-   memcpy(aux, in, nin*DIGIT_SIZE_B);
-   memset(out, 0x00, NUM_DIGITS_GF2X_ELEMENT*DIGIT_SIZE_B);
-   if (nin < NUM_DIGITS_GF2X_MODULUS) {
-      for (i = 0; i < nin; i++) out[NUM_DIGITS_GF2X_ELEMENT-1-i] = in[nin-1-i];
-      return;
-   }
-
-   for (i = 0; i < nin-NUM_DIGITS_GF2X_MODULUS; i += 1) {
-      for (j = DIGIT_SIZE_b-1; j >= 0; j--) {
-         mask = ((DIGIT)0x1) << j;
-         if (aux[i] & mask) {
-            aux[i] ^= mask;
-            posTrailingBit = (DIGIT_SIZE_b-1-j) + i*DIGIT_SIZE_b + P;
-            maskOffset = (DIGIT_SIZE_b-1-(posTrailingBit % DIGIT_SIZE_b));
-            mask = (DIGIT) 0x1 << maskOffset;
-            aux[posTrailingBit/DIGIT_SIZE_b] ^= mask;
-         }
-      }
-   }
-
-   for (j = DIGIT_SIZE_b-1; j >= MSb_POSITION_IN_MSB_DIGIT_OF_MODULUS; j--) {
-      mask = ((DIGIT)0x1) << j;
-      if (aux[i] & mask) {
-         aux[i] ^= mask;
-         posTrailingBit = (DIGIT_SIZE_b-1-j) + i*DIGIT_SIZE_b + P;
-         maskOffset = (DIGIT_SIZE_b-1-(posTrailingBit % DIGIT_SIZE_b));
-         mask = (DIGIT) 0x1 << maskOffset;
-         aux[posTrailingBit/DIGIT_SIZE_b] ^= mask;
-      }
-   }
-
-   int to_copy = (nin > NUM_DIGITS_GF2X_ELEMENT) ? NUM_DIGITS_GF2X_ELEMENT : nin;
-
-   for (i = 0; i < to_copy; i++) {
-      out[NUM_DIGITS_GF2X_ELEMENT-1-i] = aux[nin-1-i];
-   }
-
-} // end gf2x_mod
 
 /*----------------------------------------------------------------------------*/
 
@@ -113,40 +66,6 @@ void right_bit_shift(const int length, DIGIT in[])
 
 /*----------------------------------------------------------------------------*/
 
-
-/* PRE: MAX ALLOWED ROTATION AMOUNT : DIGIT_SIZE_b */
-void right_bit_shift_n(const int length, DIGIT in[], const int amount)
-{
-   assert(amount < DIGIT_SIZE_b);
-   if ( amount == 0 ) return;
-   int j;
-   DIGIT mask;
-   mask = ((DIGIT)0x01 << amount) - 1;
-   for (j = length-1; j > 0 ; j--) {
-      in[j] >>= amount;
-      in[j] |=  (in[j-1] & mask) << (DIGIT_SIZE_b - amount);
-   }
-   in[j] >>= amount;
-} // end right_bit_shift_n
-
-/*----------------------------------------------------------------------------*/
-
-/* PRE: MAX ALLOWED ROTATION AMOUNT : DIGIT_SIZE_b */
-void left_bit_shift_n(const int length, DIGIT in[], const int amount)
-{
-   assert(amount < DIGIT_SIZE_b);
-   if ( amount == 0 ) return;
-   int j;
-   DIGIT mask;
-   mask = ~(((DIGIT)0x01 << (DIGIT_SIZE_b - amount)) - 1);
-   for (j = 0 ; j < length-1 ; j++) {
-      in[j] <<= amount;
-      in[j] |=  (in[j+1] & mask) >> (DIGIT_SIZE_b - amount);
-   }
-   in[j] <<= amount;
-} // end right_bit_shift_n
-
-/*----------------------------------------------------------------------------*/
 /* shifts by whole digits */
 static inline
 void left_DIGIT_shift_n(const int length, DIGIT in[], int amount)
@@ -158,15 +77,6 @@ void left_DIGIT_shift_n(const int length, DIGIT in[], int amount)
    for (; j < length; j++) {
       in[j] = (DIGIT)0;
    }
-} // end left_bit_shift_n
-
-/*----------------------------------------------------------------------------*/
-/* may shift by an arbitrary amount*/
-
-void left_bit_shift_wide_n(const int length, DIGIT in[], int amount)
-{
-   left_DIGIT_shift_n(length, in, amount / DIGIT_SIZE_b);
-   left_bit_shift_n(length, in, amount % DIGIT_SIZE_b);
 } // end left_bit_shift_n
 
 /*----------------------------------------------------------------------------*/
@@ -239,46 +149,73 @@ with this CPU word bitsize !!! "
    return toReverse.digitValue;
 } // end reverse_digit
 
+/*----------------------------------------------------------------------------*/
+
+static
+void gf2x_swap(const int length,
+               DIGIT f[],
+               DIGIT s[])
+{
+   DIGIT t;
+   for (int i = length-1; i >= 0; i--) {
+      t = f[i];
+      f[i] = s[i];
+      s[i] = t;
+   }
+}  // end gf2x_swap
 
 /*----------------------------------------------------------------------------*/
 
-void gf2x_transpose_in_place(DIGIT A[])
+static inline
+int partition (POSITION_T arr[], int lo, int hi)
 {
-   /* it keeps the lsb in the same position and
-    * inverts the sequence of the remaining bits
-    */
-
-   DIGIT mask = (DIGIT)0x1;
-   DIGIT rev1, rev2, a00;
-   int i, slack_bits_amount = NUM_DIGITS_GF2X_ELEMENT*DIGIT_SIZE_b - P;
-
-   if (NUM_DIGITS_GF2X_ELEMENT == 1) {
-      a00 = A[0] & mask;
-      right_bit_shift(1, A);
-      rev1 = reverse_digit(A[0]);
-#if (NUM_DIGITS_GF2X_MOD_P_ELEMENT*DIGIT_SIZE_b - P)
-      rev1 >>= (DIGIT_SIZE_b-(P%DIGIT_SIZE_b));
-#endif
-      A[0] = (rev1 & (~mask)) | a00;
-      return;
+   POSITION_T x = arr[hi];
+   POSITION_T tmp;
+   int i = (lo - 1);
+   for (int j = lo; j <= hi - 1; j++)  {
+      if (arr[j] <= x) {
+         i++;
+         tmp = arr[i];
+         arr[i] = arr[j];
+         arr[j] = tmp;
+      }
    }
+   tmp = arr[i+1];
+   arr[i+1] = arr[hi];
+   arr[hi] = tmp;
 
-   a00 = A[NUM_DIGITS_GF2X_ELEMENT-1] & mask;
-   right_bit_shift(NUM_DIGITS_GF2X_ELEMENT, A);
+   return i+1;
+} // end partition
 
-   for (i = NUM_DIGITS_GF2X_ELEMENT-1; i >= (NUM_DIGITS_GF2X_ELEMENT+1)/2; i--) {
-      rev1 = reverse_digit(A[i]);
-      rev2 = reverse_digit(A[NUM_DIGITS_GF2X_ELEMENT-1-i]);
-      A[i] = rev2;
-      A[NUM_DIGITS_GF2X_ELEMENT-1-i] = rev1;
-   }
-   if (NUM_DIGITS_GF2X_ELEMENT % 2 == 1)
-      A[NUM_DIGITS_GF2X_ELEMENT/2] = reverse_digit(A[NUM_DIGITS_GF2X_ELEMENT/2]);
+/*----------------------------------------------------------------------------*/
 
-   if (slack_bits_amount)
-      right_bit_shift_n(NUM_DIGITS_GF2X_ELEMENT, A,slack_bits_amount);
-   A[NUM_DIGITS_GF2X_ELEMENT-1] = (A[NUM_DIGITS_GF2X_ELEMENT-1] & (~mask)) | a00;
-} // end transpose_in_place
+/* Return a uniform random value in the range 0..n-1 inclusive,
+ * applying a rejection sampling strategy and exploiting as a random source
+ * the NIST seedexpander seeded with the proper key.
+ * Assumes that the maximum value for the range n is 2^32-1
+ */
+static
+int rand_range(const int n, const int logn, AES_XOF_struct *seed_expander_ctx)
+{
+
+   unsigned long required_rnd_bytes = (logn+7)/8;
+   unsigned char rnd_char_buffer[4];
+   uint32_t rnd_value;
+   uint32_t mask = ( (uint32_t)1 << logn) - 1;
+
+   do {
+      seedexpander(seed_expander_ctx, rnd_char_buffer, required_rnd_bytes);
+      /* obtain an endianness independent representation of the generated random
+       bytes into an unsigned integer */
+      rnd_value =  ((uint32_t)rnd_char_buffer[3] << 24) +
+                   ((uint32_t)rnd_char_buffer[2] << 16) +
+                   ((uint32_t)rnd_char_buffer[1] <<  8) +
+                   ((uint32_t)rnd_char_buffer[0] <<  0) ;
+      rnd_value = mask & rnd_value;
+   } while (rnd_value >= n);
+
+   return rnd_value;
+} // end rand_range
 
 /*----------------------------------------------------------------------------*/
 
@@ -307,8 +244,6 @@ void rotate_bit_left(DIGIT in[])   /*  equivalent to x * in(x) mod x^P+1 */
    in[NUM_DIGITS_GF2X_ELEMENT-1] |= rotated_bit;
 } // end rotate_bit_left
 
-
-
 /*----------------------------------------------------------------------------*/
 
 void rotate_bit_right(DIGIT in[])   /*  x^{-1} * in(x) mod x^P+1 */
@@ -331,18 +266,64 @@ void rotate_bit_right(DIGIT in[])   /*  x^{-1} * in(x) mod x^P+1 */
 
 /*----------------------------------------------------------------------------*/
 
-static
-void gf2x_swap(const int length,
-               DIGIT f[],
-               DIGIT s[])
+void gf2x_mod(DIGIT out[],
+              const int nin, const DIGIT in[])
 {
-   DIGIT t;
-   for (int i = length-1; i >= 0; i--) {
-      t = f[i];
-      f[i] = s[i];
-      s[i] = t;
+
+   long int i, j, posTrailingBit, maskOffset;
+   DIGIT mask, aux[nin];
+
+   memcpy(aux, in, nin*DIGIT_SIZE_B);
+   memset(out, 0x00, NUM_DIGITS_GF2X_ELEMENT*DIGIT_SIZE_B);
+   if (nin < NUM_DIGITS_GF2X_MODULUS) {
+      for (i = 0; i < nin; i++) out[NUM_DIGITS_GF2X_ELEMENT-1-i] = in[nin-1-i];
+      return;
    }
-}  // end gf2x_swap
+
+   for (i = 0; i < nin-NUM_DIGITS_GF2X_MODULUS; i += 1) {
+      for (j = DIGIT_SIZE_b-1; j >= 0; j--) {
+         mask = ((DIGIT)0x1) << j;
+         if (aux[i] & mask) {
+            aux[i] ^= mask;
+            posTrailingBit = (DIGIT_SIZE_b-1-j) + i*DIGIT_SIZE_b + P;
+            maskOffset = (DIGIT_SIZE_b-1-(posTrailingBit % DIGIT_SIZE_b));
+            mask = (DIGIT) 0x1 << maskOffset;
+            aux[posTrailingBit/DIGIT_SIZE_b] ^= mask;
+         }
+      }
+   }
+
+   for (j = DIGIT_SIZE_b-1; j >= MSb_POSITION_IN_MSB_DIGIT_OF_MODULUS; j--) {
+      mask = ((DIGIT)0x1) << j;
+      if (aux[i] & mask) {
+         aux[i] ^= mask;
+         posTrailingBit = (DIGIT_SIZE_b-1-j) + i*DIGIT_SIZE_b + P;
+         maskOffset = (DIGIT_SIZE_b-1-(posTrailingBit % DIGIT_SIZE_b));
+         mask = (DIGIT) 0x1 << maskOffset;
+         aux[posTrailingBit/DIGIT_SIZE_b] ^= mask;
+      }
+   }
+
+   int to_copy = (nin > NUM_DIGITS_GF2X_ELEMENT) ? NUM_DIGITS_GF2X_ELEMENT : nin;
+
+   for (i = 0; i < to_copy; i++) {
+      out[NUM_DIGITS_GF2X_ELEMENT-1-i] = aux[nin-1-i];
+   }
+
+} // end gf2x_mod
+
+/*----------------------------------------------------------------------------*/
+
+void gf2x_mod_mul(DIGIT Res[], const DIGIT A[], const DIGIT B[])
+{
+
+   DIGIT aux[2*NUM_DIGITS_GF2X_ELEMENT];
+   gf2x_mul_comb(2*NUM_DIGITS_GF2X_ELEMENT, aux,
+                 NUM_DIGITS_GF2X_ELEMENT, A,
+                 NUM_DIGITS_GF2X_ELEMENT, B);
+   gf2x_mod(Res, 2*NUM_DIGITS_GF2X_ELEMENT, aux);
+
+} // end gf2x_mod_mul
 
 /*----------------------------------------------------------------------------*/
 
@@ -363,7 +344,6 @@ void gf2x_swap(const int length,
  * (Chapter 11 -- Algorithm 11.44 -- pag 223)
  *
  */
-
 int gf2x_mod_inverse(DIGIT out[], const DIGIT in[])     /* in^{-1} mod x^P-1 */
 {
 
@@ -425,52 +405,151 @@ int gf2x_mod_inverse(DIGIT out[], const DIGIT in[])     /* in^{-1} mod x^P-1 */
 
 /*----------------------------------------------------------------------------*/
 
-void gf2x_mod_mul(DIGIT Res[], const DIGIT A[], const DIGIT B[])
+void gf2x_transpose_in_place(DIGIT A[])
 {
+   /* it keeps the lsb in the same position and
+    * inverts the sequence of the remaining bits
+    */
 
-   DIGIT aux[2*NUM_DIGITS_GF2X_ELEMENT];
-   gf2x_mul_comb(2*NUM_DIGITS_GF2X_ELEMENT, aux,
-                 NUM_DIGITS_GF2X_ELEMENT, A,
-                 NUM_DIGITS_GF2X_ELEMENT, B);
-   gf2x_mod(Res, 2*NUM_DIGITS_GF2X_ELEMENT, aux);
+   DIGIT mask = (DIGIT)0x1;
+   DIGIT rev1, rev2, a00;
+   int i, slack_bits_amount = NUM_DIGITS_GF2X_ELEMENT*DIGIT_SIZE_b - P;
 
-} // end gf2x_mod_mul
+   if (NUM_DIGITS_GF2X_ELEMENT == 1) {
+      a00 = A[0] & mask;
+      right_bit_shift(1, A);
+      rev1 = reverse_digit(A[0]);
+#if (NUM_DIGITS_GF2X_MOD_P_ELEMENT*DIGIT_SIZE_b - P)
+      rev1 >>= (DIGIT_SIZE_b-(P%DIGIT_SIZE_b));
+#endif
+      A[0] = (rev1 & (~mask)) | a00;
+      return;
+   }
+
+   a00 = A[NUM_DIGITS_GF2X_ELEMENT-1] & mask;
+   right_bit_shift(NUM_DIGITS_GF2X_ELEMENT, A);
+
+   for (i = NUM_DIGITS_GF2X_ELEMENT-1; i >= (NUM_DIGITS_GF2X_ELEMENT+1)/2; i--) {
+      rev1 = reverse_digit(A[i]);
+      rev2 = reverse_digit(A[NUM_DIGITS_GF2X_ELEMENT-1-i]);
+      A[i] = rev2;
+      A[NUM_DIGITS_GF2X_ELEMENT-1-i] = rev1;
+   }
+   if (NUM_DIGITS_GF2X_ELEMENT % 2 == 1)
+      A[NUM_DIGITS_GF2X_ELEMENT/2] = reverse_digit(A[NUM_DIGITS_GF2X_ELEMENT/2]);
+
+   if (slack_bits_amount)
+      right_bit_shift_n(NUM_DIGITS_GF2X_ELEMENT, A,slack_bits_amount);
+   A[NUM_DIGITS_GF2X_ELEMENT-1] = (A[NUM_DIGITS_GF2X_ELEMENT-1] & (~mask)) | a00;
+} // end transpose_in_place
 
 /*----------------------------------------------------------------------------*/
 
-/*PRE: the representation of the sparse coefficients is sorted in increasing
- order of the coefficients themselves */
-void gf2x_mod_mul_dense_to_sparse(DIGIT Res[],
-                                  const DIGIT dense[],
-                                  POSITION_T sparse[],
-                                  unsigned int nPos)
+/* Obtains fresh randomness and seed-expands it until all the required positions
+ * for the '1's in the circulant block are obtained */
+void rand_circulant_sparse_block(POSITION_T *pos_ones,
+                                 const int countOnes,
+                                 AES_XOF_struct *seed_expander_ctx)
 {
-   DIGIT aux[2*NUM_DIGITS_GF2X_ELEMENT] = {0x00};
-   DIGIT resDouble[2*NUM_DIGITS_GF2X_ELEMENT] = {0x00};
-   memcpy(aux+NUM_DIGITS_GF2X_ELEMENT,dense, NUM_DIGITS_GF2X_ELEMENT*DIGIT_SIZE_B);
-   memcpy(resDouble+NUM_DIGITS_GF2X_ELEMENT,dense,
-          NUM_DIGITS_GF2X_ELEMENT*DIGIT_SIZE_B);
 
-   if(sparse[0] != INVALID_POS_VALUE) {
-      left_bit_shift_wide_n(2*NUM_DIGITS_GF2X_ELEMENT,resDouble,sparse[0]);
-      left_bit_shift_wide_n(2*NUM_DIGITS_GF2X_ELEMENT,aux,sparse[0]);
+   int duplicated, placedOnes = 0;
 
-      for (unsigned int i = 1; i < nPos; i++) {
-         if (sparse[i] != INVALID_POS_VALUE) {
-            left_bit_shift_wide_n(2*NUM_DIGITS_GF2X_ELEMENT,aux, (sparse[i]-sparse[i-1]) );
-            gf2x_add(2*NUM_DIGITS_GF2X_ELEMENT,resDouble,
-                     2*NUM_DIGITS_GF2X_ELEMENT,aux,
-                     2*NUM_DIGITS_GF2X_ELEMENT,resDouble);
+   while (placedOnes < countOnes) {
+      int p = rand_range(NUM_BITS_GF2X_ELEMENT,
+                         BITS_TO_REPRESENT(P),
+                         seed_expander_ctx);
+      duplicated = 0;
+      for (int j = 0; j < placedOnes; j++) if (pos_ones[j] == p) duplicated = 1;
+      if (duplicated == 0) {
+         pos_ones[placedOnes] = p;
+         placedOnes++;
+      }
+   }
+} // rand_circulant_sparse_block
+
+/*----------------------------------------------------------------------------*/
+
+void rand_circulant_blocks_sequence(DIGIT sequence[N0*NUM_DIGITS_GF2X_ELEMENT],
+                                    const int countOnes,
+                                    AES_XOF_struct *seed_expander_ctx)
+{
+
+   int rndPos[countOnes],  duplicated, counter = 0;
+   memset(sequence, 0x00, N0*NUM_DIGITS_GF2X_ELEMENT*DIGIT_SIZE_B);
+
+
+   while (counter < countOnes) {
+      int p = rand_range(N0*NUM_BITS_GF2X_ELEMENT,BITS_TO_REPRESENT(P),
+                         seed_expander_ctx);
+      duplicated = 0;
+      for (int j = 0; j < counter; j++) if (rndPos[j] == p) duplicated = 1;
+      if (duplicated == 0) {
+         rndPos[counter] = p;
+         counter++;
+      }
+   }
+   for (int j = 0; j < counter; j++) {
+      int polyIndex = rndPos[j] / P;
+      int exponent = rndPos[j] % P;
+      gf2x_set_coeff( sequence + NUM_DIGITS_GF2X_ELEMENT*polyIndex, exponent,
+                      ( (DIGIT) 1));
+   }
+
+} // end rand_circulant_blocks_sequence
+
+/*----------------------------------------------------------------------------*/
+
+/* the implementation is safe even in case A or B alias with the result */
+void gf2x_mod_add_sparse(int sizeR,
+                         POSITION_T Res[],
+                         int sizeA,
+                         POSITION_T A[],
+                         int sizeB,
+                         POSITION_T B[])
+{
+
+   POSITION_T tmpRes[sizeR];
+   int idxA = 0, idxB = 0, idxR = 0;
+
+   while ( idxA < sizeA &&  idxB < sizeB &&  A[idxA] != INVALID_POS_VALUE &&
+           B[idxB] != INVALID_POS_VALUE ) {
+
+      if (A[idxA] == B[idxB]) {
+         idxA++;
+         idxB++;
+      } else {
+         if (A[idxA] < B[idxB]) {
+            tmpRes[idxR] = A[idxA];
+            idxA++;
+         } else {
+            tmpRes[idxR] = B[idxB];
+            idxB++;
          }
+         idxR++;
       }
    }
 
-   gf2x_mod(Res, 2*NUM_DIGITS_GF2X_ELEMENT, resDouble);
+   while (idxA < sizeA && A[idxA] != INVALID_POS_VALUE) {
+      tmpRes[idxR] = A[idxA];
+      idxA++;
+      idxR++;
+   }
 
-} // end gf2x_mod_mul
+   while (idxB < sizeB && B[idxB] != INVALID_POS_VALUE) {
+      tmpRes[idxR] = B[idxB];
+      idxB++;
+      idxR++;
+   }
+
+   while (idxR < sizeR) {
+      tmpRes[idxR] = INVALID_POS_VALUE;
+      idxR++;
+   }
+   memcpy(Res,tmpRes,sizeof(POSITION_T)*sizeR);
+
+} // end gf2x_mod_add_sparse
 
 /*----------------------------------------------------------------------------*/
-
 
 void gf2x_transpose_in_place_sparse(int sizeA, POSITION_T A[])
 {
@@ -496,27 +575,6 @@ void gf2x_transpose_in_place_sparse(int sizeA, POSITION_T A[])
 } // end gf2x_transpose_in_place_sparse
 
 /*----------------------------------------------------------------------------*/
-
-static inline
-int partition (POSITION_T arr[], int lo, int hi)
-{
-   POSITION_T x = arr[hi];
-   POSITION_T tmp;
-   int i = (lo - 1);
-   for (int j = lo; j <= hi - 1; j++)  {
-      if (arr[j] <= x) {
-         i++;
-         tmp = arr[i];
-         arr[i] = arr[j];
-         arr[j] = tmp;
-      }
-   }
-   tmp = arr[i+1];
-   arr[i+1] = arr[hi];
-   arr[hi] = tmp;
-
-   return i+1;
-} // end partition
 
 void gf2x_mod_mul_sparse(int
                          sizeR, /*number of ones in the result, max sizeA*sizeB */
@@ -585,143 +643,80 @@ void gf2x_mod_mul_sparse(int
    }
 } // end gf2x_mod_mul_sparse
 
+/*----------------------------------------------------------------------------*/
+
+/* PRE: MAX ALLOWED ROTATION AMOUNT : DIGIT_SIZE_b */
+void right_bit_shift_n(const int length, DIGIT in[], const int amount)
+{
+   assert(amount < DIGIT_SIZE_b);
+   if ( amount == 0 ) return;
+   int j;
+   DIGIT mask;
+   mask = ((DIGIT)0x01 << amount) - 1;
+   for (j = length-1; j > 0 ; j--) {
+      in[j] >>= amount;
+      in[j] |=  (in[j-1] & mask) << (DIGIT_SIZE_b - amount);
+   }
+   in[j] >>= amount;
+} // end right_bit_shift_n
 
 /*----------------------------------------------------------------------------*/
-/* the implementation is safe even in case A or B alias with the result */
-void gf2x_mod_add_sparse(int sizeR,
-                         POSITION_T Res[],
-                         int sizeA,
-                         POSITION_T A[],
-                         int sizeB,
-                         POSITION_T B[])
+
+/* PRE: MAX ALLOWED ROTATION AMOUNT : DIGIT_SIZE_b */
+void left_bit_shift_n(const int length, DIGIT in[], const int amount)
 {
+   assert(amount < DIGIT_SIZE_b);
+   if ( amount == 0 ) return;
+   int j;
+   DIGIT mask;
+   mask = ~(((DIGIT)0x01 << (DIGIT_SIZE_b - amount)) - 1);
+   for (j = 0 ; j < length-1 ; j++) {
+      in[j] <<= amount;
+      in[j] |=  (in[j+1] & mask) >> (DIGIT_SIZE_b - amount);
+   }
+   in[j] <<= amount;
+} // end right_bit_shift_n
 
-   POSITION_T tmpRes[sizeR];
-   int idxA = 0, idxB = 0, idxR = 0;
+/*----------------------------------------------------------------------------*/
 
-   while ( idxA < sizeA &&  idxB < sizeB &&  A[idxA] != INVALID_POS_VALUE &&
-           B[idxB] != INVALID_POS_VALUE ) {
+/* may shift by an arbitrary amount*/
+void left_bit_shift_wide_n(const int length, DIGIT in[], int amount)
+{
+   left_DIGIT_shift_n(length, in, amount / DIGIT_SIZE_b);
+   left_bit_shift_n(length, in, amount % DIGIT_SIZE_b);
+} // end left_bit_shift_n
 
-      if (A[idxA] == B[idxB]) {
-         idxA++;
-         idxB++;
-      } else {
-         if (A[idxA] < B[idxB]) {
-            tmpRes[idxR] = A[idxA];
-            idxA++;
-         } else {
-            tmpRes[idxR] = B[idxB];
-            idxB++;
+/*----------------------------------------------------------------------------*/
+
+/*PRE: the representation of the sparse coefficients is sorted in increasing
+ order of the coefficients themselves */
+void gf2x_mod_mul_dense_to_sparse(DIGIT Res[],
+                                  const DIGIT dense[],
+                                  POSITION_T sparse[],
+                                  unsigned int nPos)
+{
+   DIGIT aux[2*NUM_DIGITS_GF2X_ELEMENT] = {0x00};
+   DIGIT resDouble[2*NUM_DIGITS_GF2X_ELEMENT] = {0x00};
+   memcpy(aux+NUM_DIGITS_GF2X_ELEMENT,dense, NUM_DIGITS_GF2X_ELEMENT*DIGIT_SIZE_B);
+   memcpy(resDouble+NUM_DIGITS_GF2X_ELEMENT,dense,
+          NUM_DIGITS_GF2X_ELEMENT*DIGIT_SIZE_B);
+
+   if(sparse[0] != INVALID_POS_VALUE) {
+      left_bit_shift_wide_n(2*NUM_DIGITS_GF2X_ELEMENT,resDouble,sparse[0]);
+      left_bit_shift_wide_n(2*NUM_DIGITS_GF2X_ELEMENT,aux,sparse[0]);
+
+      for (unsigned int i = 1; i < nPos; i++) {
+         if (sparse[i] != INVALID_POS_VALUE) {
+            left_bit_shift_wide_n(2*NUM_DIGITS_GF2X_ELEMENT,aux, (sparse[i]-sparse[i-1]) );
+            gf2x_add(2*NUM_DIGITS_GF2X_ELEMENT,resDouble,
+                     2*NUM_DIGITS_GF2X_ELEMENT,aux,
+                     2*NUM_DIGITS_GF2X_ELEMENT,resDouble);
          }
-         idxR++;
       }
    }
 
-   while (idxA < sizeA && A[idxA] != INVALID_POS_VALUE) {
-      tmpRes[idxR] = A[idxA];
-      idxA++;
-      idxR++;
-   }
+   gf2x_mod(Res, 2*NUM_DIGITS_GF2X_ELEMENT, resDouble);
 
-   while (idxB < sizeB && B[idxB] != INVALID_POS_VALUE) {
-      tmpRes[idxR] = B[idxB];
-      idxB++;
-      idxR++;
-   }
-
-   while (idxR < sizeR) {
-      tmpRes[idxR] = INVALID_POS_VALUE;
-      idxR++;
-   }
-   memcpy(Res,tmpRes,sizeof(POSITION_T)*sizeR);
-
-} // end gf2x_mod_add_sparse
-
-/*----------------------------------------------------------------------------*/
-
-/* Return a uniform random value in the range 0..n-1 inclusive,
- * applying a rejection sampling strategy and exploiting as a random source
- * the NIST seedexpander seeded with the proper key.
- * Assumes that the maximum value for the range n is 2^32-1
- */
-static
-int rand_range(const int n, const int logn, AES_XOF_struct *seed_expander_ctx)
-{
-
-   unsigned long required_rnd_bytes = (logn+7)/8;
-   unsigned char rnd_char_buffer[4];
-   uint32_t rnd_value;
-   uint32_t mask = ( (uint32_t)1 << logn) - 1;
-
-   do {
-      seedexpander(seed_expander_ctx, rnd_char_buffer, required_rnd_bytes);
-      /* obtain an endianness independent representation of the generated random
-       bytes into an unsigned integer */
-      rnd_value =  ((uint32_t)rnd_char_buffer[3] << 24) +
-                   ((uint32_t)rnd_char_buffer[2] << 16) +
-                   ((uint32_t)rnd_char_buffer[1] <<  8) +
-                   ((uint32_t)rnd_char_buffer[0] <<  0) ;
-      rnd_value = mask & rnd_value;
-   } while (rnd_value >= n);
-
-   return rnd_value;
-} // end rand_range
-
-
-
-/*----------------------------------------------------------------------------*/
-/* Obtains fresh randomness and seed-expands it until all the required positions
- * for the '1's in the circulant block are obtained */
-
-void rand_circulant_sparse_block(POSITION_T *pos_ones,
-                                 const int countOnes,
-                                 AES_XOF_struct *seed_expander_ctx)
-{
-
-   int duplicated, placedOnes = 0;
-
-   while (placedOnes < countOnes) {
-      int p = rand_range(NUM_BITS_GF2X_ELEMENT,
-                         BITS_TO_REPRESENT(P),
-                         seed_expander_ctx);
-      duplicated = 0;
-      for (int j = 0; j < placedOnes; j++) if (pos_ones[j] == p) duplicated = 1;
-      if (duplicated == 0) {
-         pos_ones[placedOnes] = p;
-         placedOnes++;
-      }
-   }
-} // rand_circulant_sparse_block
-
-/*----------------------------------------------------------------------------*/
-
-
-void rand_circulant_blocks_sequence(DIGIT sequence[N0*NUM_DIGITS_GF2X_ELEMENT],
-                                    const int countOnes,
-                                    AES_XOF_struct *seed_expander_ctx)
-{
-
-   int rndPos[countOnes],  duplicated, counter = 0;
-   memset(sequence, 0x00, N0*NUM_DIGITS_GF2X_ELEMENT*DIGIT_SIZE_B);
-
-
-   while (counter < countOnes) {
-      int p = rand_range(N0*NUM_BITS_GF2X_ELEMENT,BITS_TO_REPRESENT(P),
-                         seed_expander_ctx);
-      duplicated = 0;
-      for (int j = 0; j < counter; j++) if (rndPos[j] == p) duplicated = 1;
-      if (duplicated == 0) {
-         rndPos[counter] = p;
-         counter++;
-      }
-   }
-   for (int j = 0; j < counter; j++) {
-      int polyIndex = rndPos[j] / P;
-      int exponent = rndPos[j] % P;
-      gf2x_set_coeff( sequence + NUM_DIGITS_GF2X_ELEMENT*polyIndex, exponent,
-                      ( (DIGIT) 1));
-   }
-
-} // end rand_circulant_blocks_sequence
+} // end gf2x_mod_mul
 
 /*----------------------------------------------------------------------------*/

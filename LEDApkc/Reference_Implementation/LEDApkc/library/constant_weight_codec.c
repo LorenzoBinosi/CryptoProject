@@ -35,114 +35,6 @@
 #include <assert.h>
 #include <string.h>
 
-/* bits will be written to the output matching the same convention of the
- * bitstream read, i.e., in the same order as they appear in the natural
- * encoding of the uint64_t, with the most significant bit being written
- * as the first one in the output bitstream, starting in the output_bit_cursor
- * position */
-
-void bitstream_write(unsigned char *output,
-                     const unsigned int amount_to_write,
-                     unsigned int *output_bit_cursor,
-                     uint64_t value_to_write)
-{
-   if (amount_to_write == 0) return;
-   assert(amount_to_write <= 64);
-   unsigned int bit_cursor_in_char = *output_bit_cursor % 8;
-   unsigned int byte_cursor = *output_bit_cursor / 8;
-   unsigned int remaining_bits_in_char = 8-bit_cursor_in_char;
-
-   if (amount_to_write <= remaining_bits_in_char) {
-      uint64_t cleanup_mask = ~( (((uint64_t)1 << amount_to_write) - 1) <<
-                                 (remaining_bits_in_char-amount_to_write) );
-      uint64_t buffer = output[byte_cursor];
-
-      buffer = (buffer & cleanup_mask) | (value_to_write << (remaining_bits_in_char
-                                          -amount_to_write));
-      output[byte_cursor] = (unsigned char) buffer;
-      *output_bit_cursor += amount_to_write;
-   } else {
-      /*copy remaining_bits_in_char, allowing further copies to be byte aligned */
-      uint64_t write_buffer = value_to_write >> (amount_to_write -
-                              remaining_bits_in_char);
-      uint64_t cleanup_mask = ~((1 << remaining_bits_in_char) -1);
-
-      uint64_t buffer = output[byte_cursor];
-      buffer = (buffer & cleanup_mask) | write_buffer;
-      output[byte_cursor] = buffer;
-      *output_bit_cursor += remaining_bits_in_char;
-      byte_cursor = *output_bit_cursor /8;
-
-      /*write out as many as possible full bytes*/
-      uint64_t still_to_write= amount_to_write - remaining_bits_in_char;
-      while(still_to_write >8 ) {
-         write_buffer = value_to_write >> (still_to_write - 8) & (uint64_t)0xFF;
-         output[byte_cursor] = write_buffer;
-         *output_bit_cursor += 8;
-         byte_cursor++;
-         still_to_write -= 8;
-      } // end while
-      /*once here, only the still_to_write-LSBs of value_to_write are to be written
-       * with their MSB as the MSB of the output[byte_cursor] */
-      if(still_to_write > 0) {
-         write_buffer = value_to_write &  ((1 << still_to_write) - 1);
-         uint64_t cleanup_mask = ~( ((1 << still_to_write) - 1) << (8-still_to_write) );
-         write_buffer = write_buffer << (8-still_to_write);
-
-         output[byte_cursor] &= cleanup_mask;
-         output[byte_cursor] |= write_buffer;
-         *output_bit_cursor += still_to_write;
-      } // end if
-   } // end else
-} // end bitstream_write
-
-
-/*----------------------------------------------------------------------------*/
-/*
- * Input bitstream read as called by constantWeightEncoding
- * supports reading at most 64 bit at once since the caller will need to add
- * them to the encoding. Given the estimates for log_2(d), this is plentiful
- */
-uint64_t bitstream_read(const unsigned char *const stream,
-                        const unsigned int bit_amount,
-                        unsigned int *bit_cursor)
-{
-   if(bit_amount == 0) return (uint64_t)0;
-   assert(bit_amount <=64);
-   uint64_t extracted_bits=0;
-   int bit_cursor_in_char = *bit_cursor % 8;
-   int remaining_bits_in_char = 8 - bit_cursor_in_char;
-
-   if (bit_amount <= remaining_bits_in_char) {
-      extracted_bits = (uint64_t) (stream[*bit_cursor/8]);
-      int slack_bits = remaining_bits_in_char - bit_amount;
-      extracted_bits = extracted_bits >> slack_bits;
-      extracted_bits = extracted_bits &  ( (((uint64_t) 1) << bit_amount) - 1);
-
-   } else {
-      unsigned int byte_cursor = *bit_cursor/8;
-      unsigned int still_to_extract = bit_amount;
-      if (bit_cursor_in_char !=0) {
-         extracted_bits = (uint64_t) (stream[*bit_cursor/8]);
-         extracted_bits = extracted_bits &  ( (((uint64_t) 1) << (7-
-                                               (bit_cursor_in_char -1)) ) - 1) ;
-         still_to_extract = bit_amount-(7-(bit_cursor_in_char -1));
-         byte_cursor++;
-      }
-      while(still_to_extract > 8) {
-         extracted_bits = extracted_bits << 8 | ((uint64_t) (stream[byte_cursor]));
-         byte_cursor++;
-         still_to_extract = still_to_extract -8;
-      }
-      /* here byte cursor is on the byte where the still_to_extract MSbs are to be
-       taken from */
-      extracted_bits = (extracted_bits << still_to_extract ) |  ((uint64_t) (
-                          stream[byte_cursor])) >> (8 - still_to_extract);
-   }
-   *bit_cursor = *bit_cursor + bit_amount;
-   return extracted_bits;
-} // end bitstream_read
-
 /*----------------------------------------------------------------------------*/
 /* returns the portion of the bitstream read, padded with zeroes if the
    bitstream has less bits than required. Updates the value of the bit cursor */
@@ -181,7 +73,7 @@ void estimate_d_u(unsigned *d, unsigned *u, const unsigned n, const unsigned t)
       tmp >>= 1;
       *u = *u +1;
    }
-} //end bitstream_read_padded
+} //end estimate_d_u
 
 /*----------------------------------------------------------------------------*/
 /* Encodes a bit string into a constant weight N0 polynomials vector*/
@@ -317,3 +209,110 @@ int binary_to_constant_weight_approximate(DIGIT *constantWeightOut,
    }
    return 1;
 } // end binary_to_constant_weight_approximate
+
+/*----------------------------------------------------------------------------*/
+/*
+ * Input bitstream read as called by constantWeightEncoding
+ * supports reading at most 64 bit at once since the caller will need to add
+ * them to the encoding. Given the estimates for log_2(d), this is plentiful
+ */
+uint64_t bitstream_read(const unsigned char *const stream,
+                        const unsigned int bit_amount,
+                        unsigned int *bit_cursor)
+{
+   if(bit_amount == 0) return (uint64_t)0;
+   assert(bit_amount <=64);
+   uint64_t extracted_bits=0;
+   int bit_cursor_in_char = *bit_cursor % 8;
+   int remaining_bits_in_char = 8 - bit_cursor_in_char;
+
+   if (bit_amount <= remaining_bits_in_char) {
+      extracted_bits = (uint64_t) (stream[*bit_cursor/8]);
+      int slack_bits = remaining_bits_in_char - bit_amount;
+      extracted_bits = extracted_bits >> slack_bits;
+      extracted_bits = extracted_bits &  ( (((uint64_t) 1) << bit_amount) - 1);
+
+   } else {
+      unsigned int byte_cursor = *bit_cursor/8;
+      unsigned int still_to_extract = bit_amount;
+      if (bit_cursor_in_char !=0) {
+         extracted_bits = (uint64_t) (stream[*bit_cursor/8]);
+         extracted_bits = extracted_bits &  ( (((uint64_t) 1) << (7-
+                                               (bit_cursor_in_char -1)) ) - 1) ;
+         still_to_extract = bit_amount-(7-(bit_cursor_in_char -1));
+         byte_cursor++;
+      }
+      while(still_to_extract > 8) {
+         extracted_bits = extracted_bits << 8 | ((uint64_t) (stream[byte_cursor]));
+         byte_cursor++;
+         still_to_extract = still_to_extract -8;
+      }
+      /* here byte cursor is on the byte where the still_to_extract MSbs are to be
+       taken from */
+      extracted_bits = (extracted_bits << still_to_extract ) |  ((uint64_t) (
+                          stream[byte_cursor])) >> (8 - still_to_extract);
+   }
+   *bit_cursor = *bit_cursor + bit_amount;
+   return extracted_bits;
+} // end bitstream_read
+
+/* bits will be written to the output matching the same convention of the
+ * bitstream read, i.e., in the same order as they appear in the natural
+ * encoding of the uint64_t, with the most significant bit being written
+ * as the first one in the output bitstream, starting in the output_bit_cursor
+ * position */
+
+void bitstream_write(unsigned char *output,
+                     const unsigned int amount_to_write,
+                     unsigned int *output_bit_cursor,
+                     uint64_t value_to_write)
+{
+   if (amount_to_write == 0) return;
+   assert(amount_to_write <= 64);
+   unsigned int bit_cursor_in_char = *output_bit_cursor % 8;
+   unsigned int byte_cursor = *output_bit_cursor / 8;
+   unsigned int remaining_bits_in_char = 8-bit_cursor_in_char;
+
+   if (amount_to_write <= remaining_bits_in_char) {
+      uint64_t cleanup_mask = ~( (((uint64_t)1 << amount_to_write) - 1) <<
+                                 (remaining_bits_in_char-amount_to_write) );
+      uint64_t buffer = output[byte_cursor];
+
+      buffer = (buffer & cleanup_mask) | (value_to_write << (remaining_bits_in_char
+                                          -amount_to_write));
+      output[byte_cursor] = (unsigned char) buffer;
+      *output_bit_cursor += amount_to_write;
+   } else {
+      /*copy remaining_bits_in_char, allowing further copies to be byte aligned */
+      uint64_t write_buffer = value_to_write >> (amount_to_write -
+                              remaining_bits_in_char);
+      uint64_t cleanup_mask = ~((1 << remaining_bits_in_char) -1);
+
+      uint64_t buffer = output[byte_cursor];
+      buffer = (buffer & cleanup_mask) | write_buffer;
+      output[byte_cursor] = buffer;
+      *output_bit_cursor += remaining_bits_in_char;
+      byte_cursor = *output_bit_cursor /8;
+
+      /*write out as many as possible full bytes*/
+      uint64_t still_to_write= amount_to_write - remaining_bits_in_char;
+      while(still_to_write >8 ) {
+         write_buffer = value_to_write >> (still_to_write - 8) & (uint64_t)0xFF;
+         output[byte_cursor] = write_buffer;
+         *output_bit_cursor += 8;
+         byte_cursor++;
+         still_to_write -= 8;
+      } // end while
+      /*once here, only the still_to_write-LSBs of value_to_write are to be written
+       * with their MSB as the MSB of the output[byte_cursor] */
+      if(still_to_write > 0) {
+         write_buffer = value_to_write &  ((1 << still_to_write) - 1);
+         uint64_t cleanup_mask = ~( ((1 << still_to_write) - 1) << (8-still_to_write) );
+         write_buffer = write_buffer << (8-still_to_write);
+
+         output[byte_cursor] &= cleanup_mask;
+         output[byte_cursor] |= write_buffer;
+         *output_bit_cursor += still_to_write;
+      } // end if
+   } // end else
+} // end bitstream_write

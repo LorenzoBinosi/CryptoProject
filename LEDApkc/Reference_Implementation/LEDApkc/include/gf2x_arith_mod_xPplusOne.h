@@ -90,24 +90,11 @@
 
 /*----------------------------------------------------------------------------*/
 
-
-
-/*----------------------------------------------------------------------------*/
-
 static inline void gf2x_copy(DIGIT dest[], const DIGIT in[])
 {
    for (int i = NUM_DIGITS_GF2X_ELEMENT-1; i >= 0; i--)
       dest[i] = in[i];
 } // end gf2x_copy
-
-/*---------------------------------------------------------------------------*/
-
-void gf2x_mod(DIGIT out[],
-              const int nin, const DIGIT in[]); /* out(x) = in(x) mod x^P+1  */
-
-/*---------------------------------------------------------------------------*/
-
-void gf2x_mod_mul(DIGIT Res[], const DIGIT A[], const DIGIT B[]);
 
 /*---------------------------------------------------------------------------*/
 
@@ -119,33 +106,6 @@ static inline void gf2x_mod_add(DIGIT Res[], const DIGIT A[], const DIGIT B[])
 } // end gf2x_mod_add
 
 /*----------------------------------------------------------------------------*/
-
-/*
- * Optimized extended GCD algorithm to compute the multiplicative inverse of
- * a non-zero element in GF(2)[x] mod x^P+1, in polyn. representation.
- *
- * H. Brunner, A. Curiger, and M. Hofstetter. 1993.
- * On Computing Multiplicative Inverses in GF(2^m).
- * IEEE Trans. Comput. 42, 8 (August 1993), 1010-1015.
- * DOI=http://dx.doi.org/10.1109/12.238496
- *
- *
- * Henri Cohen, Gerhard Frey, Roberto Avanzi, Christophe Doche, Tanja Lange,
- * Kim Nguyen, and Frederik Vercauteren. 2012.
- * Handbook of Elliptic and Hyperelliptic Curve Cryptography,
- * Second Edition (2nd ed.). Chapman & Hall/CRC.
- * (Chapter 11 -- Algorithm 11.44 -- pag 223)
- *
- */
-int gf2x_mod_inverse(DIGIT out[], const DIGIT in[]);/* ret. 1 if inv. exists */
-
-/*---------------------------------------------------------------------------*/
-
-void gf2x_transpose_in_place(DIGIT
-                             A[]); /* in place bit-transp. of a(x) % x^P+1  *
-                                      * e.g.: a3 a2 a1 a0 --> a1 a2 a3 a0     */
-
-/*---------------------------------------------------------------------------*/
 
 static inline void gf2x_bitwise_and(DIGIT *const restrict OUT,
                                     const DIGIT *const restrict A,
@@ -213,6 +173,7 @@ void gf2x_set_coeff(DIGIT poly[], const unsigned int exponent, DIGIT value)
    poly[digitIdx] = poly[digitIdx] | (( value & ((DIGIT) 1)) <<
                                       (DIGIT_SIZE_b-1-inDigitIdx));
 }
+
 /*--------------------------------------------------------------------------*/
 
 /* toggles (flips) the coefficient of the x^exponent term as the LSB of a digit */
@@ -228,11 +189,32 @@ void gf2x_toggle_coeff(DIGIT poly[], const unsigned int exponent)
    DIGIT mask = ( ((DIGIT) 1) << (DIGIT_SIZE_b-1-inDigitIdx));
    poly[digitIdx] = poly[digitIdx] ^ mask;
 }
+
 /*--------------------------------------------------------------------------*/
+
+void gf2x_mod(DIGIT out[],
+              const int nin, const DIGIT in[]); /* out(x) = in(x) mod x^P+1  */
+
+/*---------------------------------------------------------------------------*/
+
+void gf2x_mod_mul(DIGIT Res[], const DIGIT A[], const DIGIT B[]);
+
+/*---------------------------------------------------------------------------*/
+
+int gf2x_mod_inverse(DIGIT out[], const DIGIT in[]);/* ret. 1 if inv. exists */
+
+/*---------------------------------------------------------------------------*/
+
+void gf2x_transpose_in_place(DIGIT
+                             A[]); /* in place bit-transp. of a(x) % x^P+1  *
+                                      * e.g.: a3 a2 a1 a0 --> a1 a2 a3 a0     */
+
+/*---------------------------------------------------------------------------*/
 
 void rand_circulant_sparse_block(POSITION_T *pos_ones,
                                  const int countOnes,
                                  AES_XOF_struct *seed_expander_ctx);
+
 /*--------------------------------------------------------------------------*/
 
 void rand_circulant_blocks_sequence(DIGIT sequence[N0*NUM_DIGITS_GF2X_ELEMENT],
@@ -263,16 +245,24 @@ void gf2x_mod_mul_sparse(int
                          const POSITION_T A[],
                          int sizeB, /*number of ones in B*/
                          const POSITION_T B[]);
+
 /*----------------------------------------------------------------------------*/
-/* PRE: amount is lesser than a digit wide */
+
 void right_bit_shift_n(const int length, DIGIT in[], int amount);
+
 /*----------------------------------------------------------------------------*/
-/* PRE: amount is lesser than a digit wide */
+
 void left_bit_shift_n(const int length, DIGIT in[], int amount);
+
 /*----------------------------------------------------------------------------*/
+
 void left_bit_shift_wide_n(const int length, DIGIT in[], int amount);
+
 /*----------------------------------------------------------------------------*/
+
 void gf2x_mod_mul_dense_to_sparse(DIGIT Res[],
                                   const DIGIT dense[],
                                   POSITION_T sparse[],
                                   unsigned int nPos);
+
+/*----------------------------------------------------------------------------*/

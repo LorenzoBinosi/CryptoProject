@@ -41,6 +41,7 @@
 
 
 /*----------------------------------------------------------------------------*/
+
 static
 int remove_padding_constant( unsigned char *const output,
                              unsigned int *const byteOutputLength,
@@ -81,6 +82,7 @@ int remove_padding_constant( unsigned char *const output,
    memcpy(output, padded_text, *byteOutputLength);
    return 1;
 }
+
 /*----------------------------------------------------------------------------*/
 
 static
@@ -175,6 +177,7 @@ int decrypt_McEliece (DIGIT decoded_err[],
 }
 
 /*----------------------------------------------------------------------------*/
+
 static
 int poly_seq_into_bytestream(unsigned char output[],
                              const unsigned int byteOutputLength,

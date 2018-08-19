@@ -37,6 +37,8 @@
 void mceliece_keygen( publicKeyMcEliece_t   *const pk,
                       privateKeyMcEliece_t *const sk,
                       AES_XOF_struct *mceliece_keys_expander);
+
 void publicKey_deletion_McEliece(publicKeyMcEliece_t   *const pk);
+
 void privateKey_deletion_McEliece(privateKeyMcEliece_t *const sk);
 

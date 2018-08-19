@@ -88,10 +88,9 @@ void mceliece_keygen(publicKeyMcEliece_t   *const pk,
    }
 } // end mceliece_keygen
 
-
 /*----------------------------------------------------------------------------*/
-/* Implementation that should never be optimized out by the compiler */
 
+/* Implementation that should never be optimized out by the compiler */
 static inline void zeroize( void *v, size_t n )
 {
    volatile unsigned char *p = v;
@@ -102,7 +101,6 @@ void publicKey_deletion_McEliece(publicKeyMcEliece_t   *const pk)
 {
    zeroize(pk->Mtr, (N0-1)*NUM_DIGITS_GF2X_ELEMENT*DIGIT_SIZE_B);
 } // publicKey_deletion_McEliece
-
 
 /*----------------------------------------------------------------------------*/
 

@@ -57,11 +57,14 @@ typedef struct {
    int             reseed_counter;
 } AES256_CTR_DRBG_struct;
 
+/*----------------------------------------------------------------------------*/
 
 void
 AES256_CTR_DRBG_Update(unsigned char *provided_data,
                        unsigned char *Key,
                        unsigned char *V);
+
+/*----------------------------------------------------------------------------*/
 
 int
 seedexpander_init(AES_XOF_struct *ctx,
@@ -69,26 +72,42 @@ seedexpander_init(AES_XOF_struct *ctx,
                   unsigned char *diversifier,
                   unsigned long maxlen);
 
+/*----------------------------------------------------------------------------*/
+
 int
 seedexpander(AES_XOF_struct *ctx, unsigned char *x, unsigned long xlen);
+
+/*----------------------------------------------------------------------------*/
 
 void
 randombytes_init(unsigned char *entropy_input,
                  unsigned char *personalization_string,
                  int security_strength);
 
+/*----------------------------------------------------------------------------*/
+
 int
 randombytes(unsigned char *x, unsigned long long xlen);
 
+/*----------------------------------------------------------------------------*/
+
 /******  End of NIST supplied code ****************/
 
+/******************************************************************************/
+
 void initialize_pseudo_random_generator_seed(int ac, char *av[]);
+
+/*----------------------------------------------------------------------------*/
 
 void deterministic_random_byte_generator(unsigned char *const output,
       const unsigned long long output_len,
       const unsigned char *const seed,
       const unsigned long long seed_length);
 
+/*----------------------------------------------------------------------------*/
+
 void seedexpander_from_trng(AES_XOF_struct *ctx,
                             const unsigned char *trng_entropy
                             /* TRNG_BYTE_LENGTH wide buffer */);
+
+/*----------------------------------------------------------------------------*/

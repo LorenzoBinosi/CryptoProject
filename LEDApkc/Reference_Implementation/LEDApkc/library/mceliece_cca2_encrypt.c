@@ -40,6 +40,7 @@
 #include <stdio.h>
 
 /*----------------------------------------------------------------------------*/
+
 // It requires that the input bytestream S
 // has the padding bits on the left
 // It requires that the input bytestream has the padding bits on the left
@@ -198,4 +199,5 @@ int encrypt_Kobara_Imai(unsigned char *const output,
 
    return 1;
 } // end encrypt_Kobara_Imai
+
 /*----------------------------------------------------------------------------*/
