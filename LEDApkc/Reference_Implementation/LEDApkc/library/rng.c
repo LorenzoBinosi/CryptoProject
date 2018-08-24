@@ -45,50 +45,58 @@
 #include "aes256.h"
 #include "qc_ldpc_parameters.h"
 
-/******************************************************************************/
-/*----------------------------------------------------------------------------*/
-/*              start PSEUDO-RAND GENERATOR ROUTINES for rnd.h                */
-/*----------------------------------------------------------------------------*/
-
-
-void initialize_pseudo_random_generator_seed(int ac, char *av[])
-{
-
-   if (ac == 2)
-      srand(atoi(av[1]));
-   else {
-      struct timespec seedValue;
-      clock_gettime(CLOCK_REALTIME, &seedValue);
-      srand(seedValue.tv_nsec);
-   } // end else-if
-   unsigned char pseudo_entropy[48];
-   for (int i=0; i< 48; i++) pseudo_entropy[i] = rand() & 0xff;
-   randombytes_init(pseudo_entropy,
-                    NULL,
-                    0 /*unused in NIST function*/);
-
-
-} // end initilize_pseudo_random_sequence_seed
-
 
 /*----------------------------------------------------------------------------*/
-
-/* Initializes a dedicated DRBG context to avoid conflicts with the global one
- * declared by NIST for KATs. Provides the output of the DRBG in output, for
- * the given length */
-
-
-/*----------------------------------------------------------------------------*/
-/*              end PSEUDO-RAND GENERATOR ROUTINES for rnd.h                  */
-/*----------------------------------------------------------------------------*/
-
-
-
 
 AES256_CTR_DRBG_struct  DRBG_ctx;
 
 void    AES256_ECB(unsigned char *key, unsigned char *ctr,
                    unsigned char *buffer);
+
+/*----------------------------------------------------------------------------*/
+
+// Use whatever AES implementation you have. This uses AES from openSSL library
+//    key - 256-bit AES key
+//    ptx - a 128-bit plaintext value
+//    ctx - a 128-bit ciphertext value
+void
+AES256_ECB(unsigned char *key, unsigned char *ptx, unsigned char *ctx)
+{
+   uint32_t round_key[4*(NROUNDS + 1)] = {0x00};
+   rijndaelKeySetupEnc(round_key, key, KEYLEN_b);
+   rijndaelEncrypt(round_key, NROUNDS, ptx, ctx);
+}
+
+/*----------------------------------------------------------------------------*/
+
+void
+AES256_CTR_DRBG_Update(unsigned char *provided_data,
+                       unsigned char *Key,
+                       unsigned char *V)
+{
+   unsigned char   temp[48];
+
+   for (int i=0; i<3; i++) {
+      //increment V
+      for (int j=15; j>=0; j--) {
+         if ( V[j] == 0xff )
+            V[j] = 0x00;
+         else {
+            V[j]++;
+            break;
+         }
+      }
+
+      AES256_ECB(Key, V, temp+16*i);
+   }
+   if ( provided_data != NULL )
+      for (int i=0; i<48; i++)
+         temp[i] ^= provided_data[i];
+   memcpy(Key, temp, 32);
+   memcpy(V, temp+32, 16);
+}
+
+/*----------------------------------------------------------------------------*/
 
 /*
  seedexpander_init()
@@ -125,6 +133,8 @@ seedexpander_init(AES_XOF_struct *ctx,
 
    return RNG_SUCCESS;
 }
+
+/*----------------------------------------------------------------------------*/
 
 /*
  seedexpander()
@@ -176,19 +186,7 @@ seedexpander(AES_XOF_struct *ctx, unsigned char *x, unsigned long xlen)
    return RNG_SUCCESS;
 }
 
-// Use whatever AES implementation you have. This uses AES from openSSL library
-//    key - 256-bit AES key
-//    ptx - a 128-bit plaintext value
-//    ctx - a 128-bit ciphertext value
-
-
-void
-AES256_ECB(unsigned char *key, unsigned char *ptx, unsigned char *ctx)
-{
-   uint32_t round_key[4*(NROUNDS + 1)] = {0x00};
-   rijndaelKeySetupEnc(round_key, key, KEYLEN_b);
-   rijndaelEncrypt(round_key, NROUNDS, ptx, ctx);
-}
+/*----------------------------------------------------------------------------*/
 
 void
 randombytes_init(unsigned char *entropy_input,
@@ -206,6 +204,8 @@ randombytes_init(unsigned char *entropy_input,
    AES256_CTR_DRBG_Update(seed_material, DRBG_ctx.Key, DRBG_ctx.V);
    DRBG_ctx.reseed_counter = 1;
 }
+
+/*----------------------------------------------------------------------------*/
 
 int
 randombytes(unsigned char *x, unsigned long long xlen)
@@ -239,34 +239,43 @@ randombytes(unsigned char *x, unsigned long long xlen)
    return RNG_SUCCESS;
 }
 
-void
-AES256_CTR_DRBG_Update(unsigned char *provided_data,
-                       unsigned char *Key,
-                       unsigned char *V)
+/******************************************************************************/
+
+/******  End of NIST supplied code ****************/
+
+/******************************************************************************/
+
+/*----------------------------------------------------------------------------*/
+/*              start PSEUDO-RAND GENERATOR ROUTINES for rnd.h                */
+/*----------------------------------------------------------------------------*/
+void initialize_pseudo_random_generator_seed(int ac, char *av[])
 {
-   unsigned char   temp[48];
 
-   for (int i=0; i<3; i++) {
-      //increment V
-      for (int j=15; j>=0; j--) {
-         if ( V[j] == 0xff )
-            V[j] = 0x00;
-         else {
-            V[j]++;
-            break;
-         }
-      }
-
-      AES256_ECB(Key, V, temp+16*i);
-   }
-   if ( provided_data != NULL )
-      for (int i=0; i<48; i++)
-         temp[i] ^= provided_data[i];
-   memcpy(Key, temp, 32);
-   memcpy(V, temp+32, 16);
-}
+   if (ac == 2)
+      srand(atoi(av[1]));
+   else {
+      struct timespec seedValue;
+      clock_gettime(CLOCK_REALTIME, &seedValue);
+      srand(seedValue.tv_nsec);
+   } // end else-if
+   unsigned char pseudo_entropy[48];
+   for (int i=0; i< 48; i++) pseudo_entropy[i] = rand() & 0xff;
+   randombytes_init(pseudo_entropy,
+                    NULL,
+                    0 /*unused in NIST function*/);
 
 
+} // end initilize_pseudo_random_sequence_seed
+
+/* Initializes a dedicated DRBG context to avoid conflicts with the global one
+ * declared by NIST for KATs. Provides the output of the DRBG in output, for
+ * the given length */
+
+/*----------------------------------------------------------------------------*/
+/*              end PSEUDO-RAND GENERATOR ROUTINES for rnd.h                  */
+/*----------------------------------------------------------------------------*/
+
+/*----------------------------------------------------------------------------*/
 
 void deterministic_random_byte_generator(unsigned char *const output,
       const unsigned long long output_len,
@@ -319,6 +328,7 @@ void deterministic_random_byte_generator(unsigned char *const output,
 
 } // end deterministic_random_byte_generator
 
+/*----------------------------------------------------------------------------*/
 
 void seedexpander_from_trng(AES_XOF_struct *ctx,
                             const unsigned char *trng_entropy
@@ -341,3 +351,5 @@ void seedexpander_from_trng(AES_XOF_struct *ctx,
     * bytes conservatively to 10 MiB*/
    seedexpander_init(ctx,prng_buffer,diversifier,10*1024*1024);
 }
+
+/*----------------------------------------------------------------------------*/
