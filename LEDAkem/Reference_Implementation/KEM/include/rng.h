@@ -1,4 +1,9 @@
 #pragma once
+// TODO: Not parametric:  initialize_pseudo_random_generator_seed, seedexpander, AES256_ECB, randombytes_init, 
+//                        randombytes, AES256_CTR_DRBG_Update, deterministic_random_byte_generator
+#define seedexpander_init PARAMETRIC_CAT(seedexpander_init, CATEGORY, N0) // TODO: TRNG_BYTE_LENGTH depends only on CATEGORY
+#define seedexpander_from_trng PARAMETRIC_CAT(seedexpander_from_trng, CATEGORY, N0) // TODO: TRNG_BYTE_LENGTH depends only on CATEGORY
+
 //
 //  From this point on the code was extracted and adapted from rng.c
 //
@@ -83,6 +88,7 @@ randombytes(unsigned char *x, unsigned long long xlen);
  *
  **/
 
+// TODO: WHY PROTOTIPE OF AES256_ECB IS IN .c AND NOT HERE??
 
 void initialize_pseudo_random_generator_seed(int ac, char *av[]);
 

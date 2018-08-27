@@ -31,6 +31,8 @@
  **/
 
 #pragma once
+#define bf_decoding PARAMETRIC_CAT(bf_decoding, CATEGORY, N0)
+
 #include "qc_ldpc_parameters.h"
 #include "gf2x_limbs.h"
 #define              ITERATIONS_MAX   (15)

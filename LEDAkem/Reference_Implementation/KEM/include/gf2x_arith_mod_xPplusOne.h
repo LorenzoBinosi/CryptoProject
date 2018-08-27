@@ -31,9 +31,31 @@
  **/
 
 #pragma once
+// TODO: Not parametric:  left_bit_shift, right_bit_shift, right_bit_shift_n, left_bit_shift_n, 
+//                        left_DIGIT_shift_n, left_bit_shift_wide_n, byte_reverse_with_less32bitDIGIT, 
+//                        byte_reverse_with_32bitDIGIT, byte_reverse_with_64bitDIGIT, reverse_digit,
+//                        gf2x_swap, gf2x_transpose_in_place_sparse, gf2x_mod_add_sparse, rand_range,
+//                        rand_circulant_blocks_sequence, partition, quicksort
+#define gf2x_mod PARAMETRIC_CAT(gf2x_mod, CATEGORY, N0)
+#define gf2x_transpose_in_place PARAMETRIC_CAT(gf2x_transpose_in_place, CATEGORY, N0)
+#define rotate_bit_left PARAMETRIC_CAT(rotate_bit_left, CATEGORY, N0)
+#define rotate_bit_right PARAMETRIC_CAT(rotate_bit_right, CATEGORY, N0)
+#define gf2x_mod_inverse PARAMETRIC_CAT(gf2x_mod_inverse, CATEGORY, N0)
+#define gf2x_mod_mul PARAMETRIC_CAT(gf2x_mod_mul, CATEGORY, N0)
+#define gf2x_mod_mul_dense_to_sparse PARAMETRIC_CAT(gf2x_mod_mul_dense_to_sparse, CATEGORY, N0)
+#define gf2x_mod_mul_sparse PARAMETRIC_CAT(gf2x_mod_mul_sparse, CATEGORY, N0)
+#define rand_circulant_sparse_block PARAMETRIC_CAT(rand_circulant_sparse_block, CATEGORY, N0)
+// STATICS FROM .h
+#define gf2x_copy PARAMETRIC_CAT(gf2x_copy, CATEGORY, N0)
+#define gf2x_mod_add PARAMETRIC_CAT(gf2x_mod_add, CATEGORY, N0)
+#define gf2x_bitwise_and PARAMETRIC_CAT(gf2x_bitwise_and, CATEGORY, N0)
+#define population_count PARAMETRIC_CAT(population_count, CATEGORY, N0)
+#define gf2x_get_coeff PARAMETRIC_CAT(gf2x_get_coeff, CATEGORY, N0)
+#define gf2x_set_coeff PARAMETRIC_CAT(gf2x_set_coeff, CATEGORY, N0)
+#define gf2x_toggle_coeff PARAMETRIC_CAT(gf2x_toggle_coeff, CATEGORY, N0)
 
-#include "gf2x_limbs.h"
-#include "qc_ldpc_parameters.h"
+#include "gf2x_limbs.h" // TODO: ALSO IMPORTED BY gf2x_arith.h
+#include "qc_ldpc_parameters.h" // TODO: ALSO IMPORTED BY gf2x_limbs.h
 
 #include "gf2x_arith.h"
 #include "rng.h"

@@ -37,7 +37,7 @@
 #include <inttypes.h>
 #include <limits.h>
 #include <stddef.h>
-#include "qc_ldpc_parameters.h"
+#include "qc_ldpc_parameters.h" // TODO: NOT USED
 
 /*----------------------------------------------------------------------------*/
 

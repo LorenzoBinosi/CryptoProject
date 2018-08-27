@@ -31,6 +31,7 @@
  **/
 
 #pragma once
+#define decrypt_niederreiter PARAMETRIC_CAT(decrypt_niederreiter, CATEGORY, N0)
 
 #include "niederreiter.h"
 #include "gf2x_limbs.h"

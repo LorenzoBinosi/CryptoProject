@@ -30,6 +30,7 @@
  *
  **/
 #pragma once
+#define PARAMETRIC_CAT(a, b, c) a ## _SL ## b ## _N0 ## c // TODO: #define PRIMITIVE even if never used?
 // CATEGORY defined in the makefile
 
 /*----------------------------------------------------------------------------*/

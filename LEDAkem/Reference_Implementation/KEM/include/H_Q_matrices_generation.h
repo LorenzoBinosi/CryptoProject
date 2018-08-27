@@ -31,6 +31,10 @@
  **/
 
 #pragma once
+#define generateHPosOnes_HtrPosOnes PARAMETRIC_CAT(generateHPosOnes_HtrPosOnes, CATEGORY, N0)
+#define generateQPosOnes_QtrPosOnes PARAMETRIC_CAT(generateQPosOnes_QtrPosOnes, CATEGORY, N0)
+#define generateQsparse PARAMETRIC_CAT(generateQsparse, CATEGORY, N0)
+
 #include "qc_ldpc_parameters.h"
 #include "gf2x_limbs.h"
 #include "rng.h"

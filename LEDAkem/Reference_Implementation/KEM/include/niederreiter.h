@@ -31,6 +31,10 @@
  **/
 
 #pragma once
+// STRUCTS FROM .h
+#define privateKeyNiederreiter_t PARAMETRIC_CAT(privateKeyNiederreiter_t, CATEGORY, N0)
+#define publicKeyNiederreiter_t PARAMETRIC_CAT(publicKeyNiederreiter_t, CATEGORY, N0)
+
 #include "qc_ldpc_parameters.h"
 #include "gf2x_limbs.h"
 #include "gf2x_arith_mod_xPplusOne.h"
