@@ -35,6 +35,7 @@
 #include "niederreiter_decrypt.h"
 #include "rng.h"
 #include "sha3.h"
+#include "crypto_kem.h"
 #include <string.h>
 /* Generates a keypair - pk is the public key and sk is the secret key. */
 int crypto_kem_keypair( unsigned char *pk,

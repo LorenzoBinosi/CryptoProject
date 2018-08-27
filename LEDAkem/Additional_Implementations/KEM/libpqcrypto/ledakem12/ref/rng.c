@@ -37,7 +37,7 @@
 #include <stdint.h>
 #include <stdlib.h> // void srand(unsigned int seed); int rand(void); RAND_MAX
 #include <string.h> // void *memset(void *s, int c, size_t n);
-#define __USE_POSIX199309
+//#define __USE_POSIX199309
 #include <time.h> // struct timespec; clock_gettime(...); CLOCK_REALTIME
 
 #include "aes256.h"
